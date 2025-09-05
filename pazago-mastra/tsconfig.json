@@ -1,18 +1,16 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ES2022",
-    "moduleResolution": "node",
+    "target": "esnext",
+    "module": "nodenext",             // ensures ESM resolution works with .ts/.js
+    "moduleResolution": "nodenext",
+    "rootDir": "src",                 // your source folder
+    "outDir": "dist",                 // compiled JS output
+    "strict": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "strict": true,
     "skipLibCheck": true,
-    "noEmit": true,
-    "outDir": "dist",
-    "resolveJsonModule": true,
-    "allowSyntheticDefaultImports": true
+    "verbatimModuleSyntax": false
   },
-  "include": [
-    "src/**/*"
-  ]
+  "include": ["src"],                 // compile everything inside src/
+  "exclude": ["node_modules", "dist"]
 }

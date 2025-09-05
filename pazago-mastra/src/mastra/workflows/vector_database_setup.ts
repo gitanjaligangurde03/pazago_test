@@ -1,39 +1,56 @@
-import { Client } from 'pg';
-import OpenAI from 'openai';
-import dotenv from 'dotenv';
+const { Client } = require("pg");
+const { GoogleGenAI } = require("@google/genai");
 
-dotenv.config();
-
-const connectionString = process.env.DATABASE_URL!;
-const openaiApiKey = process.env.OPENAI_API_KEY!;
+const connectionString = "postgresql://postgres:password@localhost:5432/mastra";
 
 const client = new Client({ connectionString });
-const openai = new OpenAI({ apiKey: openaiApiKey });
+const ai = new GoogleGenAI({ apiKey: "AIzaSyAJekmAW4V-IvmTRf67uW8LLnifjD52dZw" });
 
-async function setupVectorDatabase(chunks: any[]) {
+function textToVector(text: string, dim = 128): number[] {
+  const codes = Array.from(text).map(c => c.charCodeAt(0));
+  const vec = new Array(dim).fill(0);
+
+  for (let i = 0; i < Math.min(dim, codes.length); i++) {
+    const code = codes[i];
+    if (code !== undefined) {
+      vec[i] = code / 255;
+    }
+  }
+
+  return vec;
+}
+
+
+async function setupVectorDatabase(
+  chunks: { content: string; metadata: Record<string, any> }[]
+) {
   await client.connect();
+  console.log("Database Connected:", connectionString);
 
   for (const chunk of chunks) {
-    const embeddingResponse = await openai.embeddings.create({
-      model: "text-embedding-3-small", // better to use latest embedding model
-      input: chunk.content,
-    });
+    try {
+      // 🔑 Convert chunk text → vector
+      const embedding = textToVector(chunk.content, 128);
 
-    const embedding = embeddingResponse.data[0].embedding;
+      // Format vector for pgvector: "[0.1,0.2,...]"
+      const embeddingStr = `[${embedding.join(",")}]`;
 
-    await client.query(
-      `INSERT INTO shareholder_vectors (embedding, metadata, content) 
-       VALUES ($1, $2, $3)`,
-      [
-        embedding, // must be stored in a pgvector column
-        JSON.stringify(chunk.metadata), // ensure metadata is stored properly
-        chunk.content,
-      ]
-    );
+      console.log("Inserting Chunk:", {
+        metadata: chunk.metadata,
+        content: chunk.content.slice(0, 60) + "...", // log preview only
+      });
+
+      await client.query(
+        "INSERT INTO shareholder_vectors (embedding, metadata, content) VALUES ($1, $2, $3)",
+        [embeddingStr, JSON.stringify(chunk.metadata), chunk.content]
+      );
+    } catch (error) {
+      console.error("Error Processing Chunk:", chunk, error);
+    }
   }
 
   console.log("Embeddings stored in the database.");
   await client.end();
 }
 
-export { setupVectorDatabase };
+module.exports = { setupVectorDatabase };
